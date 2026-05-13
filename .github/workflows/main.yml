@@ -38,7 +38,7 @@ jobs:
       - name: Download main package
         if: steps.cache-zip.outputs.cache-hit != 'true'
         run: |
-          Invoke-WebRequest https://www.dropbox.com/scl/fi/zvc8widlyguxwpy93pluf/00-12.zip?rlkey=vwwsqplxxw8jatswvn18xv73a&st=sc8quolv&dl=1 -OutFile hits.zip
+          Invoke-WebRequest 'https://www.dropbox.com/scl/fi/zvc8widlyguxwpy93pluf/00-12.zip?rlkey=vwwsqplxxw8jatswvn18xv73a&st=sc8quolv&dl=1' -OutFile hits.zip
 
       - name: Download state package
         if: steps.cache-zip.outputs.cache-hit != 'true'
