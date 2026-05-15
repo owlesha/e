@@ -74,53 +74,50 @@ jobs:
           }
 
           Remove-Item $tmp -Recurse -Force
-
-      # 🔁 Запуск с авто-рестартом + мягкое завершение
-      - name: Run with auto-restart + graceful shutdown
+          
+      - name: Run 9hits with internal restart
         run: |
           $exe = Get-ChildItem C:\9Hits -Recurse -Filter "9hits.exe" | Select-Object -First 1
-
+      
           if (!$exe) {
             Write-Host "9hits.exe not found"
             exit 1
           }
-
+      
           $exePath = $exe.FullName
-          $proc = $null
-
-          # ~3 часа (чуть меньше)
-          $end = (Get-Date).AddMinutes(30)
-
-          try {
-            while ((Get-Date) -lt $end) {
-
-              # если процесс не запущен — стартуем
-              if (!$proc -or $proc.HasExited) {
-                $proc = Start-Process $exePath -PassThru
-                Write-Host "9hits started"
-              } else {
-                Write-Host "9hits running"
-              }
-
-              Start-Sleep 15
-            }
-          }
-          finally {
-            # 💡 мягкое завершение при остановке job
-            if ($proc -and !$proc.HasExited) {
-              Write-Host "Stopping 9hits gracefully..."
-
+      
+          # общий лимит работы job
+          $end = (Get-Date).AddMinutes(350)
+      
+          while ((Get-Date) -lt $end) {
+            Write-Host "Starting 9hits..."
+      
+            $proc = Start-Process $exePath -PassThru
+      
+            # один запуск работает 30 минут
+            Start-Sleep 1800
+      
+            if (!$proc.HasExited) {
+              Write-Host "Stopping 9hits..."
+      
               try {
                 $proc.CloseMainWindow() | Out-Null
                 Start-Sleep 5
               } catch {}
-
+      
               if (!$proc.HasExited) {
                 Write-Host "Force kill 9hits"
                 $proc.Kill()
               }
             }
+      
+            Write-Host "Restart after 5 sec..."
+            Start-Sleep 5
           }
+
+
+      
+          
 
       - name: Resource usage summary
         if: always()
@@ -140,3 +137,24 @@ jobs:
           Write-Host "CPU avg $cpuAvg%"
           Write-Host "CPU peak $cpuMax%"
           Write-Host ("RAM used {0:N2} MB free {1:N2} MB total {2:N2} MB" -f $memUsed,$memFree,$memTotal)
+
+
+      - name: Trigger next run
+        if: always()
+        run: |
+          Start-Sleep 58
+
+          $body = @{
+            ref = "main"
+          } | ConvertTo-Json
+
+          Invoke-RestMethod `
+            -Method POST `
+            -Uri "https://api.github.com/repos/${{ github.repository }}/actions/workflows/main.yml/dispatches" `
+            -Headers @{
+              Authorization = "Bearer $env:GITHUB_TOKEN"
+              Accept = "application/vnd.github+json"
+            } `
+            -Body $body
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
